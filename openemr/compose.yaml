@@ -1,0 +1,138 @@
+services:
+  mysql:
+    restart: always
+    image: mariadb:11.8.8@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4
+    command: ['mariadbd', '--character-set-server=utf8mb4', '--ssl-ca=/etc/ssl/ca.pem', '--ssl_cert=/etc/ssl/server-cert.pem', '--ssl_key=/etc/ssl/server-key.pem']
+    ports:
+    - "${WT_MYSQL_PORT:-8320}:3306"
+    volumes:
+    - ../library/sql-ssl-certs-keys/easy/ca.pem:/etc/ssl/ca.pem:ro
+    - ../library/sql-ssl-certs-keys/easy/server-cert.pem:/etc/ssl/server-cert.pem:ro
+    - ../library/sql-ssl-certs-keys/easy/server-key.pem:/etc/ssl/server-key.pem:ro
+    - databasevolume:/var/lib/mysql
+    env_file: mysql.env
+    healthcheck:
+      test:
+      - CMD
+      - /usr/local/bin/healthcheck.sh
+      - --su-mysql
+      - --connect
+      - --innodb_initialized
+      start_period: 1m
+      start_interval: 10s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+  openemr:
+    restart: always
+    image: openemr/openemr:flex@sha256:f5d30896ae827f575e4d2d1aa3bf3a893457404c0301e4848d5a8173e8c081e2
+    ports:
+    - "${WT_HTTP_PORT:-8300}:80"
+    - "${WT_HTTPS_PORT:-9300}:443"
+    volumes:
+    - ${OPENEMR_DIR:-../..}:/openemr:ro
+    - ${OPENEMR_DIR:-../..}:/var/www/localhost/htdocs/openemr:rw
+    - assetvolume:/var/www/localhost/htdocs/openemr/public/assets:rw
+    - themevolume:/var/www/localhost/htdocs/openemr/public/themes:rw
+    - sitesvolume:/var/www/localhost/htdocs/openemr/sites:rw
+    - nodemodules:/var/www/localhost/htdocs/openemr/node_modules:rw
+    - vendordir:/var/www/localhost/htdocs/openemr/vendor:rw
+    - phpstanvolume:/var/www/localhost/htdocs/openemr/tmp-phpstan:rw
+    - webpackcachevolume:/var/www/localhost/htdocs/openemr/.webpack-cache:rw
+    - ccdanodemodules:/var/www/localhost/htdocs/openemr/ccdaservice/node_modules:rw
+    - ccdanodemodules2:/var/www/localhost/htdocs/openemr/ccdaservice/packages/oe-cqm-service/node_modules:rw
+    - logvolume:/var/log
+    - couchdbvolume:/couchdb/data
+    env_file: openemr.env
+    environment:
+      HOST_UID: "${HOST_UID:-1000}"
+      HOST_GID: "${HOST_GID:-1000}"
+      OPENEMR_SETTING_site_addr_oath: 'https://localhost:${WT_HTTPS_PORT:-9300}'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - /usr/bin/curl
+      - --fail
+      - --insecure
+      - --location
+      - --show-error
+      - --silent
+      - https://localhost/meta/health/readyz
+      start_period: 3m
+      start_interval: 10s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+  selenium:
+    restart: always
+    image: selenium/standalone-chromium:150.0.7871.114@sha256:3400b92f1cddb2dfaaf358654e8f7d83d7be45192fb73c5f28c25faa28d36504
+    ports:
+    - "${WT_SELENIUM_PORT:-4444}:4444"
+    - "${WT_VNC_PORT:-7900}:7900"
+    env_file: selenium.env
+    volumes:
+    - /dev/shm:/dev/shm
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      start_period: 30s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  phpmyadmin:
+    restart: always
+    image: phpmyadmin:5.2.3@sha256:b68f318c5fd85541795ed8eb4ced28ea6908a89910871783b3e479cc6c6d1e1b
+    ports:
+    - "${WT_PMA_PORT:-8310}:80"
+    env_file: phpmyadmin.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+  couchdb:
+    restart: always
+    image: couchdb:3.5.2@sha256:7feb744b60195233219f3fa801cbc2384efa24b28c76a5d1f3e93efe6557f921
+    ports:
+    - "${WT_COUCHDB_PORT:-5984}:5984"
+    - "${WT_COUCHDB_SSL_PORT:-6984}:6984"
+    volumes:
+    - ../library/couchdb-config-ssl-cert-keys/local.ini:/opt/couchdb/etc/local.ini:rw
+    - ../library/couchdb-config-ssl-cert-keys/easy/ca.pem:/etc/ssl/ca.pem:ro
+    - ../library/couchdb-config-ssl-cert-keys/easy/server-cert.pem:/etc/ssl/server-cert.pem:ro
+    - ../library/couchdb-config-ssl-cert-keys/easy/server-key.pem:/etc/ssl/server-key.pem:ro
+    - couchdbvolume:/opt/couchdb/data
+    env_file: couchdb.env
+  openldap:
+    restart: always
+    image: openemr/dev-ldap:easy@sha256:b1dbb4b1f1074b6a298dabd256b80d766bccbfca99aa89d023cf894d6f4c57aa
+    env_file: openldap.env
+  mailpit:
+    restart: unless-stopped
+    image: axllent/mailpit:v1.30.5@sha256:b868afa176bfd6cce2323ea316cd99ccad77915e51e595748f6d786700ecf109
+    ports:
+    - "${WT_MAILPIT_UI_PORT:-8025}:8025"
+    - "${WT_MAILPIT_SMTP_PORT:-1025}:1025"
+    env_file: mailpit.env
+    volumes:
+    - mailpitvolume:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025/api/v1/messages"]
+      start_period: 10s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  databasevolume: {}
+  assetvolume: {}
+  themevolume: {}
+  sitesvolume: {}
+  nodemodules: {}
+  vendordir: {}
+  phpstanvolume: {}
+  webpackcachevolume: {}
+  ccdanodemodules: {}
+  ccdanodemodules2: {}
+  logvolume: {}
+  couchdbvolume: {}
+  mailpitvolume: {}
