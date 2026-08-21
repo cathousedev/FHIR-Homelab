@@ -3,6 +3,8 @@ volumes:
 services:
   postgres:
     image: docker.io/library/postgres:18
+    env_file:
+    - postgres.env
     volumes:
     - postgres_data:/var/lib/postgresql/18/docker:delegated
     command:
@@ -11,6 +13,8 @@ services:
     - shared_preload_libraries=pg_stat_statements
   aidbox:
     image: docker.io/healthsamurai/aidboxone:edge
+    env_file:
+    - aidbox.env
     pull_policy: always
     depends_on:
     - postgres
