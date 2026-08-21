@@ -1,0 +1,23 @@
+{
+    # All encryption is handled via my main homelab server's caddy instance
+    auto_https off
+}
+
+http://aidbox.cathousedev.com {
+    # Yosemite handles this; Yellowstone will ignore it
+    reverse_proxy aidbox:8080
+}
+
+http://emr.cathousedev.com {
+    # Yellowstone handles this; Yosemite will ignore it
+    reverse_proxy emr:3000
+}
+
+# Optional: Direct access / Management endpoints
+http://yosemite.cathousedev.com {
+    respond "Welcome to Yosemite Server" 200
+}
+
+http://yellowstone.cathousedev.com {
+    respond "Welcome to Yellowstone Server" 200
+}
