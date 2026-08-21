@@ -11,6 +11,8 @@ services:
     - postgres
     - -c
     - shared_preload_libraries=pg_stat_statements
+    networks:
+    - db
   aidbox:
     image: docker.io/healthsamurai/aidboxone:edge
     env_file:
@@ -22,6 +24,7 @@ services:
     - 8080:8080
     networks:
     - proxy
+    - db
     healthcheck:
       test: curl -f http://localhost:8080/health || exit 1
       interval: 5s
@@ -31,3 +34,5 @@ services:
 networks:
   proxy:
     external: true
+  db:
+    driver: bridge
