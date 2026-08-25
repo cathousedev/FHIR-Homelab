@@ -29,6 +29,9 @@ services:
     ports:
     - 800:80
     - 4430:443
+    networks:
+    - default
+    - proxy
     env_file:
     - ./openemr.env
     volumes:
@@ -52,6 +55,9 @@ services:
       interval: 1m
       timeout: 5s
       retries: 3
+networks:
+  proxy:
+    external: true
 volumes:
   logvolume01: {}
   sitevolume: {}
