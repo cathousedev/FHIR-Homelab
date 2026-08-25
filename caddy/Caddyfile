@@ -10,7 +10,7 @@ http://aidbox.cathousedev.com {
 
 http://emr.cathousedev.com {
     # Yellowstone handles this; Yosemite will ignore it
-    reverse_proxy openemr:443
+    reverse_proxy openemr-openemr-1:443
 }
 
 # Optional: Direct access / Management endpoints
