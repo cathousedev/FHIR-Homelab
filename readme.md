@@ -1,48 +1,72 @@
-## Why this exists
+# FHIR-Homelab
 
-I'm an RN who is a massive linux nerd and have recently become fascinated by FHIR. In addition I am studying for my RHCSA cert and wanted some experiance working with Rocky Linux/ RHEL.
+A self-hosted FHIR development environment for learning and portfolio work:
+**Aidbox** (FHIR server) + **OpenEMR** (EHR), fronted by **Caddy**.
+
+## Architecture
+
+Three-node setup on `cathousedev.com`:
+
+| Node | IP | Role |
+|---|---|---|
+| **Zion** | — | Edge node — Caddy terminates TLS, routes to internal nodes |
+| **Yosemite** | 192.168.1.6 | Runs Aidbox + Postgres |
+| **Yellowstone** | 192.168.1.7 | Runs OpenEMR + MySQL |
+
+Cloudflare is used for DNS and Caddy's DNS-01 ACME challenge (wildcard cert
+issuance) — it does not proxy traffic; requests terminate directly at Zion.
 
 ## Stack
 
-- **[Aidbox](https://www.health-samurai.io/aidbox)** — FHIR server
-- **[OpenEMR](https://www.open-emr.org/)** — open-source EHR, connected to the FHIR server for realistic clinical data flows
-- **[Caddy](https://caddyserver.com/)** — reverse proxy; TLS is handled by the main homelab's Caddy instance (edge node), not by the Caddy config in this repo
+- **Aidbox** — FHIR R4 server
+- **OpenEMR** — EHR, used as a source of clinical data
+- **Caddy** — reverse proxy / TLS across all three nodes
+- **Postgres** / **MySQL** — backing datastores for Aidbox / OpenEMR respectively
+- **Synthea** (submodule) — synthetic patient data generation *(not yet wired up)*
 
-This runs as part of a larger self-hosted homelab (Docker Compose + Komodo for orchestration), reachable via a Cloudflare-managed domain. See [`caddy/caddy_readme.md`](./caddy/caddy_readme.md) for the multi-node routing setup.
+## Status
+
+- [x] Aidbox running on Yosemite
+- [x] OpenEMR running on Yellowstone
+- [x] Caddy routing across all three nodes
+- [ ] OpenEMR ↔ Aidbox integration
+- [ ] Synthea synthetic data loaded into Aidbox
+- [ ] Zion edge Caddyfile committed to this repo (currently node-local, documented as a pattern only)
+
+## Getting started
+
+See [`STARTUP_GUIDE.md`](./STARTUP_GUIDE.md) for full setup instructions,
+environment variable reference, and troubleshooting.
+
+Quick version:
+
+```bash
+git clone --recurse-submodules https://github.com/cathousedev/FHIR-Homelab.git
+
+# on both Yosemite and Yellowstone
+docker network create proxy
+
+# Yosemite
+docker compose -f aidbox/compose.yaml up -d
+
+# Yellowstone
+docker compose -f openemr/docker-compose.yml up -d
+
+# each node, once its service is up
+docker compose -f caddy/compose.yml up -d
+```
 
 ## Repo layout
 
 ```
-.
-├── aidbox/   # Aidbox FHIR server config
-├── caddy/    # Reverse proxy / TLS config
-└── openemr/  # OpenEMR config
+aidbox/     # Aidbox + Postgres compose, env templates
+openemr/    # OpenEMR + MySQL compose, env templates
+caddy/      # Shared reverse proxy config (identical on both service nodes)
+synthea/    # Submodule — synthetic patient data (not yet integrated)
 ```
 
-## Running it
+## Why this exists
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/cathousedev/FHIR-Homelab.git
-   cd FHIR-Homelab
-   ```
-2. This repo does **not** include env files or secrets — you'll need to supply your own for Aidbox and OpenEMR. See their official setup docs:
-   - Aidbox: [Run Aidbox locally](https://www.health-samurai.io/docs/aidbox/getting-started/run-aidbox-locally)
-   - OpenEMR: [docker-compose.yml (development-easy)](https://github.com/openemr/openemr/blob/master/docker/development-easy/docker-compose.yml)
-3. Bring up each service with Docker Compose, e.g.:
-   ```bash
-   docker compose -f aidbox/docker-compose.yml up -d
-   docker compose -f openemr/docker-compose.yml up -d
-   docker compose -f caddy/docker-compose.yml up -d
-   ```
-4. TLS termination and routing are handled by the main homelab's Caddy edge node — see [`caddy/caddy_readme.md`](./caddy/caddy_readme.md) for the full multi-node routing pattern (edge node + internal nodes).
-
-## Roadmap
-
-- [ ] Load synthetic patient data (Synthea) into the aidbox server
-- [ ] Initialize and connect Open EMR to Aidbox backend
-- [ ] Document integration points between OpenEMR and Aidbox
-
-## Disclaimer
-
-This is a personal lab environment for learning purposes. No real patient data is used.
+Built as both a hands-on FHIR learning project and a portfolio piece —
+part of a broader push into healthcare informatics/IT. Roadmap items above
+(OpenEMR↔Aidbox integration, Synthea-generated test data) are the next steps.
